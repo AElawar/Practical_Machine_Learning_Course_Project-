@@ -1,0 +1,159 @@
+---
+title: "Practical Machine Learning - Course Project"
+author: "AElawar"
+date: "February 22, 2018"
+output: 
+  html_document:
+    keep_md: true
+---
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit, it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The five ways are labelled Class A, B, C, D, E, respectively, with only Class A corresponding to correct performance. The goal of this project is to predict the manner in which they did the exercise. More information is available on: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data Importing 
+
+Ensuring the results of the R code are printed out:
+
+```{r}
+echo=TRUE
+```
+
+Loading needed libraries:
+
+```{r}
+suppressMessages(library(caret)); suppressMessages(library(rattle)); suppressMessages(library(rpart)); suppressMessages(library(rpart.plot)); suppressMessages(library(randomForest)); suppressMessages(library(knitr))
+```
+
+Loading training and testing datasets and checking their dimensions:
+
+```{r}
+TrainData <- read.csv("pml-training.csv", na.strings = c("NA", ""))
+dim(TrainData)
+```
+
+```{r}
+TestData <- read.csv("pml-testing.csv", na.strings = c("NA", ""))
+dim(TestData)
+```
+
+## Data Cleaning
+
+The training dataset consists of 19622 observations and 160 variables (columns). While the testing dataset consists of 20 observations and 160 variables (columns). By inspecting the datasets, We notice that many columns have NA or blank values on almost every observation. So we will remove them, because they will not produce any information. We will also remove the first seven columns which give information about the people who did the test, and the timestamps of their activities. 
+
+```{r}
+# Removing columns containing missing values from datasets
+TrainData <- TrainData[, colSums(is.na(TrainData)) == 0]
+TestData <- TestData[, colSums(is.na(TestData)) == 0]
+```
+
+```{r}
+# Removing the first 7 columns from datasets
+TrainData_Clean <- TrainData[, -c(1:7)]
+TestData_Clean <- TestData[, -c(1:7)]
+```
+
+Listing the variables (column names) of cleaned datasets: 
+
+```{r}
+colnames(TrainData_Clean)
+```
+
+```{r}
+colnames(TestData_Clean)
+```
+
+Both cleaned datasets have 53 columns with the same first 52 variables. The last variable in TrainData_Clean is "classe"", and the last variable in TestData_Clean is "problem_id". TrainData_Clean has 19622 rows while TestData_Clean has 20 rows.
+
+## Data Partitioning
+
+In order to get out-of-sample errors, we split the cleaned training dataset TrainData_Clean into a training set (70%) for prediction and a validation set (30%) to compute the out-of-sample errors.
+
+```{r}
+set.seed(345) 
+xTrain <- createDataPartition(TrainData_Clean$classe, p = 0.7, list = FALSE)
+training70 <- TrainData_Clean[xTrain, ]
+validate30 <- TrainData_Clean[-xTrain, ]
+```
+
+## Prediction Model Algorithms
+
+We apply the "Classification Trees"" and "Random Forests" algorithms to predict the outcome variable.
+
+### Classification Trees
+
+Here we use k-fold cross-validation when applying the algorithm, with k=5 (instead of the default k=10) to save on computing time. 
+
+```{r}
+control <- trainControl(method = "cv", number = 5)
+rpart_fitting <- train(classe ~ ., data = training70, method = "rpart", 
+                   trControl = control)
+print(rpart_fitting, digits = 4)
+```
+
+```{r}
+fancyRpartPlot(rpart_fitting$finalModel)
+```
+
+```{r}
+# Predicting the outcomes using the validation set
+rpart_predict <- predict(rpart_fitting, validate30)
+# Showing the prediction results
+(rpart_matrix <- confusionMatrix(validate30$classe, rpart_predict))
+```
+
+```{r}
+(rpart_accuracy <- rpart_matrix$overall[1])
+```
+
+From the confusion matrix above, we see that the accuracy rate is around 0.5, and therefore the out-of-sample error rate is about 0.5. This means applying the Classification Tree algorithm does not predict the outcome "classe"" very well.
+
+### Random Forest 
+
+Since the Classification Tree algorithm did not perform well in this case, we then try the Random Forest algorithm instead.
+
+```{r}
+rf_fitting <- train(classe ~ ., data = training70, method = "rf", 
+                   trControl = control)
+print(rf_fitting, digits = 4)
+```
+
+We then predict the outcomes using the validation set, and show the prediction result and the model accuracy:
+
+```{r}
+rf_predict <- predict(rf_fitting, validate30)
+```
+
+```{r}
+(rf_matrix <- confusionMatrix(validate30$classe, rf_predict))
+```
+
+```{r}
+(rf_accuracy <- rf_matrix$overall[1])
+```
+
+Here we can see that, with this dataset, Random Forest (RF) is a much better prediction algorithm than Classification Tree. The RF accuracy rate is 0.993, and so the out-of-sample error rate is 0.007. Even though Random Forest proves, in this case, to be highly accurate, its runtime (around 45 minutes) is much longer than Classification Trees runtime (around 1 minute).
+
+## Prediction on Testing Dataset
+
+Finally, we select the highly accurate Random Forest algorithm to predict the outcome variable "classe" for the testing dataset TestData_Clean:
+
+```{r}
+(predict(rf_fitting, TestData_Clean))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
